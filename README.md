@@ -25,5 +25,4 @@ tree structure
 │   ├── swap_ctrl_alt
 │   ├── tab_to_spaces
 │   └── window_screenshot
-└── secrets.fish
 ```

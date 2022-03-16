@@ -1,0 +1,45 @@
+#!/bin/bash
+
+if [ -z "$1" ]; then
+    regex_to_find_ip='(\b25[0-5]|\b2[0-4][0-9]|\b[01]?[0-9][0-9]?)(\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)){3}'
+    host=$(ip addr | grep -Eo $regex_to_find_ip | grep -v 127.0.0.1 -m 1) # local network
+else
+    host="$1"
+fi
+
+GREEN='\033[0;32m'
+RED='\033[0;31m'
+NC='\033[0m' # No Color
+printf "Hosting on: ${GREEN}$host${NC}\n"
+if [ -f manage.py ]; then
+    echo "Running Django server..."
+    settings_file=$(find . -maxdepth 2 -type f -name "settings.py")
+    echo $settings_file
+    if [ -f "./$settings_file" ]; then
+        sed -i "/^ALLOWED_HOSTS/s,\[.*\],[\"$host\"]," $settings_file
+        echo "changed allowed host"
+    fi
+    virt_env_file=$(find . -maxdepth 3 -type f -name "activate")
+    source $virt_env_file
+    python3 manage.py runserver $host:8000
+elif [ -d "node_modules" ]; then
+    # Nextjs
+    if [ -d "pages" ]; then
+        echo "Running Next server..."
+        npx next dev -H $host
+
+    elif [ -d "src" ]; then
+        # Vuejs
+        if [ ! -z "$(find ./src -maxdepth 1 -type f -name 'App.vue')" ]; then
+            echo "Running Vue server..."
+            yarn serve
+        # React js
+        elif [ ! -z "$(find ./node_modules -maxdepth 1 -type d -name 'react')" ]; then
+            echo "Running React server..."
+            yarn start
+        fi
+    fi
+else
+    printf "${RED}Nothing to host${NC}\n"
+fi
+

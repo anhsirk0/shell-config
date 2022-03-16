@@ -1,0 +1,16 @@
+#!/bin/bash
+
+if [ -z "$1" ]; then
+    # set file (find . -maxdepth 4 -type f -not -path "*/\.*" | fzf)
+    file=$(fd -d 4 -t f | fzf)
+else
+    # set file (find . -maxdepth 4 -type f -not -path "*/\.*" -iname "*.$argv[1]" | fzf)
+    file=$(fd -d 4 -t f -g "*.$1" | fzf)
+fi
+
+if [ -z "$file" ]; then
+    echo "no file selected"
+else
+    kak $file
+fi
+

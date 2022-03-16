@@ -1,0 +1,27 @@
+#!/bin/bash
+
+file=$1
+ext=${file##*.}
+
+case $ext in
+    rs)
+        name=${file%.*}
+        rustc $file && ./$name $2 $3 $4 $5
+        [ -f "$name" ] && rm $name ;;
+    c)
+        gcc -o a.out $file -lm && ./a.out $2 $3 $4
+        [ -f "a.out"  ] && rm a.out ;;
+        
+    cpp)
+        g++ $file && ./a.out $2 $3 $4
+        [ -f "a.out"  ] && rm a.out ;;
+
+    py)
+        python3 $file $2 $3 $4;;
+
+    sh)
+        bash $file $2 $3 $4 ;;
+
+    *) exit ;;
+esac
+

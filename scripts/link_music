@@ -1,0 +1,4 @@
+#!/bin/bash
+
+find ~/Music/ -xtype l -exec rm {} \;
+ln -s /mnt/krishna/All_Songs/* ~/Music/ 2>/dev/null

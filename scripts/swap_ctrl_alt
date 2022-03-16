@@ -1,0 +1,3 @@
+#!/bin/bash
+
+xmodmap $HOME/.config/awesome/swap_ctrl_alt && notify-send "Ctrl ⇌ Alt"

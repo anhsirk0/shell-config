@@ -1,0 +1,7 @@
+#!/bin/bash
+
+bash ~/.config/alacritty/change_theme.sh
+kak ~/.config/awesome/rc.lua +34:29
+kak ~/.config/kak/kakrc +9:13
+
+

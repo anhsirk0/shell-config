@@ -1,5 +1,16 @@
 # Myshell config (fish)
 
+# Installation
+make sure you name it `myshell`
+```bash
+git clone https://github.com/anhsirk0/shell-config.git ~/.config/myshell
+```
+Update your fish config (~/.config/fish/config.fish)  
+Add this line and you are good to go
+```sh
+source ~/.config/myshell/fishrc.fish
+```
+
 tree structure
 ```text
 .

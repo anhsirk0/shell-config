@@ -20,6 +20,7 @@ set songs_dir /mnt/krishna/All_Songs
 # setting up PATHS
 set PATH $PATH $HOME/.config/myshell/scripts/
 set PATH $PATH $HOME/.local/bin/
+set PATH $PATH $HOME/.local/flutter/bin/
 set PATH $PATH $HOME/.local/bin/waterfox/
 set PATH $PATH $HOME/.cargo/bin
 
@@ -30,8 +31,10 @@ if test ! -z "(command -v bat)"
 end
 
 set -Ux LS_COLORS "ow=01;34"
+set -Ux CHROME_EXECUTABLE "/usr/bin/brave"
 set -Ux TESSDATA_PREFIX /usr/share/tessdata/
-set EDITOR /usr/bin/kak
+
+test ! -z "(command -v kak)" && set EDITOR /usr/bin/kak
 
 # system commands
 alias ls='exa'
@@ -77,6 +80,7 @@ alias cdxco='cd $dxco ; cf'
 alias cfg='cd ~/.config/ ; cf'
 alias cdwall='cd $dwall ; cf'
 alias cdtemp='cd $dp/temp ; cf'
+alias cdfl='cd $dfl ; cf'
 alias clipboard='xsel --input --clipboard'
 
 # others
@@ -107,6 +111,7 @@ abbr -a -g ins install
 abbr -a -g cr cargo run
 abbr -a -g md mid3v2
 abbr -a -g se sudoedit
+abbr -a -g fl flutter
 
 abbr -a -g r runserver
 
@@ -124,6 +129,7 @@ set dsel /mnt/projects/Selenium
 set dgpy /mnt/projects/Pygame
 set dp /mnt/projects
 set dpl /mnt/projects/Perl
+set dfl /mnt/projects/Flutter
 set ddj /mnt/projects/Django
 set dne /mnt/projects/Next
 set dre /mnt/projects/React
@@ -133,17 +139,13 @@ set dg /mnt/projects/Git
 set dxco /mnt/extras/config
 
 # sourcing
-if test -f "$HOME/.config/myshell/fish_functions.fish"
-    source "$HOME/.config/myshell/fish_functions.fish"
+function source_my_files
+    for arg in $argv
+	test -f "$HOME/.config/myshell/$arg" && source "$HOME/.config/myshell/$arg"
+    end
 end
 
-if test -f "$HOME/.config/myshell/projects_aliases.fish"
-    source "$HOME/.config/myshell/projects_aliases.fish"
-end
-
-if test -f "$HOME/.config/myshell/secrets.fish"
-    source "$HOME/.config/myshell/secrets.fish"
-end
+source_my_files "fish_functions.fish" "secrets.fish" "projects_aliases.fish"
 
 if test ! -z "(command -v starship)"
     starship init fish | source
@@ -151,3 +153,4 @@ end
 
 # fm6000 -c bright_cyan -v -n -f ~/.config/myshell/astronaut.txt -g 4
 fm6000 -c random -r -v
+

@@ -1,0 +1,24 @@
+#!/bin/bash
+
+name=${1%.*}
+echo "Changing tags of: $name"
+default_title=$(echo $name | awk -F " - " '{ print $1 }')
+default_artist=$(echo $name | awk -F " - " '{ print $2 }')
+
+read -p "Title ($default_title) : " title
+read -p "Artist ($default_artist) : " artist
+
+if [ -z "$title" ]; then
+     title=$default_title
+fi
+
+if [ -z "$artist" ]; then
+     artist=$default_artist
+fi
+
+echo "Changing Title to : $title"
+echo "Changing Artist to : $artist"
+
+mid3v2 -t "$title" "$1"
+mid3v2 -a "$artist" "$1"
+mid3v2 -A "$title" "$1"

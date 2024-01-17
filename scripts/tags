@@ -1,0 +1,117 @@
+#!/usr/bin/env python3
+
+# Change tags of audio files, automatically or interactively.
+# https://codeberg.org/anhsirk0/tags
+
+import os
+import argparse
+from mutagen.easyid3 import EasyID3
+from mutagen.mp3 import MP3
+
+
+class Colors:
+    OKGREEN = '\033[92m'
+    WARNING = '\033[93m'
+    ERROR = '\033[91m'
+    ENDC = '\033[0m'
+
+
+def parse_arguments() -> argparse.Namespace:
+    parser = argparse.ArgumentParser()
+    parser.add_argument('files', metavar='FILE', type=str, nargs='+',
+                        help='Files to change tags of')
+    parser.add_argument("-i", "--interactive", action="store_true",
+                        help="Input tags interactively")
+    parser.add_argument("-d", "--dry-run", action="store_true",
+                        help="Show what will happen")
+    return parser.parse_args()
+
+
+def get_tags_from_name(name: str) -> dict:
+    """
+    Extract title, artist, album from `name`
+    @param name as str
+    @return dict
+    """
+    if len(name) == 0:
+        raise ValueError("File name can not be empty")
+
+    splitted_name = name.split(" - ")
+
+    title  = splitted_name[0]
+    artist = None
+    album  = title
+
+    if len(splitted_name) > 1:
+        artist = splitted_name[1]
+
+    if len(splitted_name) > 2:
+        album = splitted_name[2]
+
+    return {
+        "title": title,
+        "artist": artist,
+        "album": album,
+    }
+
+
+def get_tags_interactively(file_path: str, default_tags: dict) -> dict:
+    """
+    Get title, artist, album by taking input from user
+    @param file_path as str
+    @param default_tags as dict
+    @return dict
+    """
+    print(f'{Colors.WARNING}Updating tags of "{file_path}"', end="")
+    print(f', leave empty to choose default{Colors.ENDC}')
+
+    tags = dict()
+    for key, value in default_tags.items():
+        tags[key] = input(f'{key.title()} (default: "{value}"): ') or value
+    return tags
+
+
+def update_tags(file_path: str, tags: dict, dry_run=False):
+    """
+    Update the tags of `file_path` using `tags` if not `dry_run`
+    @param file_path as str
+    @param tags as dict
+    @param dry_run as bool
+    """
+    info = ", ".join([value for _, value in tags.items() if value is not None])
+
+    if dry_run:
+        print(f'{Colors.OKGREEN}Updated "{file_path}" ({info}){Colors.ENDC}')
+        return
+
+    audio = MP3(file_path, ID3=EasyID3)
+    if audio.tags is None:
+        audio.add_tags()
+
+    for key, value in tags.items():
+        if value is not None:
+            audio[key] = value
+    audio.save()
+    print(f'{Colors.OKGREEN}Updated "{file_path}" ({info}){Colors.ENDC}')
+
+
+def main():
+    """
+    Parse Arguments and loop over args.files and update_tags
+    """
+    args = parse_arguments()
+    for file_path in args.files:
+        name, _ = os.path.splitext(file_path);
+        name = name.split(os.path.sep)[-1]
+        try:
+            tags = get_tags_from_name(name)
+            if args.interactive:
+                tags = get_tags_interactively(file_path, tags)
+        except ValueError as e:
+            print(f'{Colors.ERROR}{e}, Skipping "{file_path}"{Colors.ENDC}')
+            continue
+        update_tags(file_path, tags, dry_run=args.dry_run)
+
+
+if __name__ == "__main__":
+    main()

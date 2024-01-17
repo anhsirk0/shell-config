@@ -1,0 +1,65 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+use Cwd qw( getcwd );
+use File::Find;
+use File::Spec::Functions qw( abs2rel );
+use Getopt::Long;
+
+my $FUZZY;
+my $CWD = getcwd();
+my @sub_dirs = ();
+
+# wanted sub for finding directories
+sub wanted {
+    my $name = $File::Find::name;
+    return if ($name =~ /^\./ || $name eq $CWD);
+    push(@sub_dirs, $name) if (-d);
+}
+
+# preprocessor fn for File::Find
+sub preprocess {
+    my $depth = $File::Find::dir =~ tr[/][];
+    my $cwd_depth = ($CWD =~ tr[/][]);
+    return @_ if $depth < $cwd_depth + (scalar @ARGV);
+}
+
+sub naturally { # Minimal natural sort (could fail in some cases)
+    my ($digit_a) = $a =~ /(\d+)/;
+    my ($digit_b) = $b =~ /(\d+)/;
+    $digit_a ||= -1;
+    $digit_b ||= -1;
+    return ($a cmp $b) if ($digit_a * $digit_b < 0 || $digit_a + $digit_b < 0);
+    return $digit_a <=> $digit_b;
+}
+
+sub main {
+    GetOptions (
+        "fuzzy|f" => \$FUZZY,
+        ) or die("Error in command line arguments\n");
+    unless (scalar @ARGV) { print $CWD; exit }
+    find({ preprocess => \&preprocess, wanted => \&wanted }, $CWD );
+
+    my $final_dir;
+    my $level = 0;
+
+    @sub_dirs = sort naturally @sub_dirs;
+    for (@sub_dirs) {
+        next if ($level > (scalar @ARGV -1));
+        my $dir = abs2rel($_);
+        my $arg = $ARGV[$level];
+        my $rgx = ($level == 0) ? ($FUZZY ? ".*" : "^") : $final_dir;
+        $rgx .= $FUZZY ? ".*$arg.*" : "$arg.*";
+
+        if ($dir =~ qr/${rgx}/) {
+            $level++;
+            $final_dir = $dir . "/";
+            next;
+        }
+    }
+    # perl scripts runs in a process, they can't change cwd on the terminal
+    print($CWD . "/" . $final_dir);
+}
+
+main();

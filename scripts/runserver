@@ -1,0 +1,39 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+use Term::ANSIColor;
+
+$| = 1;
+
+my $npm = `sh -c 'command -v pnpm'` ? "pnpm" : "yarn";
+
+my @SERVERS = (
+    # Name ,   Command     , File/Directory
+    ['Vite', "$npm dev", 'node_modules/vite'],
+    ['Svelte', "$npm dev", 'node_modules/svelte'],
+    ['Nestjs', "$npm run start:dev", 'node_modules/@nestjs'],
+    ['Django', 'python3 manage.py runserver', 'manage.py'],
+    ['Rails', 'bin/rails server', 'bin/rails'],
+    ['Nextjs', "$npm dev", 'node_modules/next'],
+    ['React', "$npm start", 'node_modules/react'],
+    );
+
+sub error_exit {
+    print colored("Could not determine the runserver command for project"
+                  , "red") . "\n";
+    exit(1);
+}
+
+sub main {
+    foreach my $server (@SERVERS) {
+        my ($name, $cmd, $file) = @$server;
+        next unless (-d $file || -f $file);
+        print colored("Running $name server ...\n", "green");
+        system($cmd);
+        exit;
+    }
+    error_exit();
+}
+
+main();

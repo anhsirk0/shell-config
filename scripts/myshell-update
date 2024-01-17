@@ -1,0 +1,146 @@
+#!/usr/bin/env perl
+
+use Getopt::Long;
+use Term::ANSIColor;
+use strict;
+use warnings;
+
+my $BASE_URL    = "https://codeberg.org/anhsirk0";
+my $CONFIG_DIR  = $ENV{HOME} . "/.config/myshell";
+my $SCRIPTS_DIR = $CONFIG_DIR . "/scripts";
+my $TEMP_DIR    = "/tmp/myshell-update";
+
+my $GREEN       = "bright_green";
+my $YELLOW      = "yellow";
+my $RED         = "red";
+my $BLUE        = "bright_blue";
+
+my $replace     = 0;
+my $help;
+my $list;
+
+my $all;
+my @components = (
+    # $name, $repo, $file_name
+    ["arng", "arng", "arng.pl"],
+    ["cd-fuzzy", "cd-fuzzy", "cd-fuzzy.pl"],
+    ["fm6000", "fetch-master-6000", "fm6000.pl"],
+    ["gacp", "gacp", "gacp.pl"],
+    ["pere", "pere", "pere.pl"],
+    ["self", "myshell-update", "myshell-update.pl"],
+    ["tags", "tags", "tags.py"],
+    ["theme", "theme-change", "theme.pl"],
+    ["volume", "volume", "volume.pl"],
+    );
+
+
+$SIG{INT} = \&quit;
+sub quit {
+    die colored("\tQuiting ...", $YELLOW);
+}
+
+sub format_option {
+    my ($short, $long, $desc) = @_;
+    my $text = "\t" . colored("-" . $short, $GREEN);
+    $text .= ", " . colored("--" . $long . " ", $GREEN) . "\t" . $desc;
+    return $text . "\n";
+}
+
+sub print_list_and_exit {
+    print join("\n", map { shift @{$_} } @components), "\nall\n";
+    exit;
+}
+
+sub print_help_and_exit {
+    my $programs = join(" ", map { shift @{$_} } @components) . " all";
+
+    printf(
+        "%s \n%s \n\n%s \n\n%s \n%s%s%s \n%s \n%s%s \n\n%s \n%s \n%s \n%s \n",
+        colored("myshell-update", $GREEN),
+        "Update myshell and its components",
+        colored("USAGE:", $YELLOW) . "\n\t" . "myshell-update [ARGS] [OPTIONS]",
+        colored("OPTIONS:", $YELLOW),
+        format_option("h", "help", "Print help information"),
+        format_option("l", "list", "Print component names {args to myshell-update}"),
+        format_option(
+            "r",
+            "replace",
+            "Also replace user specific files {others, git_abbrs, projects}"),
+        colored("ARGS:", $YELLOW),
+        colored("\t<NAME>", $GREEN),
+        "\t\tProgram to update [$programs]",
+        colored("EXAMPLE:", $YELLOW),
+        "\tmyshell-update all",
+        "\tmyshell-update all --replace",
+        "\tmyshell-update arng fm6000 pere",
+        );
+    exit;
+}
+
+sub curl_and_copy {
+    my ($url, $output_file) = @_;
+    unless (-d $TEMP_DIR) { mkdir($TEMP_DIR) }
+
+    print colored("Downloading '$url'\n", "$YELLOW");
+    my $return_code = system("curl $url --output $output_file -s");
+    unless ($return_code eq "0") {
+        return print colored("Failed to curl $output_file\n\n", "$RED");
+    }
+
+    # print colored("Copying '$output_file' to '$SCRIPTS_DIR'\n", "$YELLOW");
+    system("cp $output_file $CONFIG_DIR/scripts/ -v");
+    $output_file =~ s/$TEMP_DIR\///;
+    print colored("Updated $output_file\n\n", "$GREEN");
+}
+
+sub update {
+    my ($name, $repo, $file) = @_;
+    my $url = $BASE_URL . "/" . $repo . "/raw/branch/main/" . $file;
+    my $output_file = $TEMP_DIR . "/" . $name;
+    curl_and_copy($url, $output_file);
+}
+
+sub clone_repo_and_copy {
+    if (-d $TEMP_DIR) { system("rm -rf $TEMP_DIR") }
+    my $config_url = $BASE_URL . "/shell-config";
+    my $return_code = system("git clone $config_url $TEMP_DIR --depth 1");
+    unless ($return_code eq "0") {
+        return print colored("Failed to `git clone` $config_url\n\n", "$RED");
+    }
+
+    my $source = $replace ? "$TEMP_DIR/*.fish" : "$TEMP_DIR/fish*.fish";
+    system("cp -v $source $CONFIG_DIR/");
+    system("cp -rv $TEMP_DIR/scripts $CONFIG_DIR/");
+    system("cp -rv $TEMP_DIR/ascii_arts $CONFIG_DIR/");
+}
+
+sub main {
+    GetOptions (
+        "help|h" => \$help,
+        "list|l" => \$list,
+        "replace|r" => \$replace,
+        ) or die("Error in command line arguments,");
+
+    print_list_and_exit() if ($list);
+    print_help_and_exit() if ($help || ! @ARGV);
+
+    if (grep /^all$/i, @ARGV) {
+        $all = 1;
+        print colored("Updating all\n", $GREEN);
+        clone_repo_and_copy();
+        sleep(1);
+    }
+
+    foreach my $component (@components) {
+        my ($name, $repo, $file) = @$component;
+        next unless ($all || grep /^$name$/i, @ARGV);
+
+        $name =~ s/self/myshell-update/;
+        update($name, $repo, $file);
+    }
+
+    # print colored("Making scripts & binaries executable\n", $YELLOW);
+    system("chmod +x $CONFIG_DIR/*/*");
+}
+
+main();

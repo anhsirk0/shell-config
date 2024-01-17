@@ -1,0 +1,6 @@
+#!/bin/bash
+
+config="$HOME/.config/kmonad/ext_keyboard.kbd"
+kmonad $config & > /dev/null
+notify-send "Kmonad loaded"
+

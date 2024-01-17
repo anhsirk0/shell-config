@@ -1,0 +1,59 @@
+#!/bin/bash
+
+file=$1
+shift
+
+ext=${file##*.}
+
+case $ext in
+    rs)
+        name=${file%.*}
+        rustc $file && ./$name $@
+        [ -f "$name" ] && rm $name ;;
+
+    hs)
+        name=${file%.*}
+        ghc -dynamic $file && ./$name $@
+        [ -f "$name" ] && rm $name ;;
+
+    java)
+        name=${file%.*}
+        javac $file
+        if [ -f "$name.class" ]; then
+            java $name $@
+            rm $name.class
+        fi
+        ;;
+
+    c)
+        gcc -o a.out $file -lm && ./a.out $@
+        [ -f "a.out"  ] && rm a.out ;;
+
+    cpp)
+        g++ $file && ./a.out $@
+        [ -f "a.out"  ] && rm a.out ;;
+
+    js)
+        node $file $@;;
+
+    ts)
+        ts-node $file $@;;
+
+    py)
+        python3 $file $@;;
+
+    pl)
+        perl $file $@;;
+
+    sh)
+        bash $file $@ ;;
+
+    cr)
+        crystal $file $@ ;;
+
+    rb)
+        ruby $file $@ ;;
+
+    *) exit ;;
+esac
+

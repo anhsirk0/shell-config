@@ -1,0 +1,18 @@
+#!/bin/bash
+
+if [ ! -z "$1" ] ; then
+    name="$1"
+else
+    name="screenshot$(date +'%m%d%y%H%M%S')"
+fi
+
+take_screenshot () {
+    maim -s ~/Pictures/$name.png -u
+    # xfce4-screenshooter -rs ~/Pictures/$name.png
+    # scrot -s "$1.png" -e 'mv $f ~/Pictures/'
+
+    message="Area screenshot captured ➜ $1.png"
+    [ -f "$HOME/Pictures/$1.png" ] && notify-send "$message"
+}
+
+take_screenshot $name

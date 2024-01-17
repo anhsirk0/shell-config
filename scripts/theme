@@ -1,0 +1,140 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+
+my @light_themes = (
+    "cyprus",
+    "day",
+    "deuteranopia-light",
+    "duo-light",
+    "elea-light",
+    "frost",
+    "kassio",
+    "light",
+    "maris-light",
+    "operandi",
+    "operandi-deuteranopia",
+    "operandi-tinted",
+    "operandi-tritanopia",
+    "spring",
+    "summer",
+    "tritanopia-light",
+    "trio-light"
+    );
+
+my @dark_themes = (
+    "autumn",
+    "bio",
+    "cherie",
+    "dark",
+    "deuteranopia-dark",
+    "duo-dark",
+    "elea-dark",
+    "night",
+    "maris-dark",
+    "symbiosis",
+    "tritanopia-dark",
+    "trio-dark",
+    "vivendi",
+    "vivendi-deuteranopia",
+    "vivendi-tinted",
+    "vivendi-tritanopia",
+    "winter"
+    );
+
+my @available_themes = (@light_themes, @dark_themes);
+
+my $gtk_theme;
+my $icon_theme;
+# defaults
+my $gtk_theme_light = "Ant";
+my $gtk_theme_dark = "Abyss-INK";
+
+my $icon_theme_light = "Papirus-Light";
+my $icon_theme_dark = "Papirus-Dark";
+
+sub print_help_and_exit {
+    my $joined_light_themes = join "\n    ", @light_themes;
+    my $joined_dark_themes = join "\n    ", @dark_themes;
+    my $help_text = qq{usage: theme [theme-name] [--help] [--list]
+
+Available themes:
+  Light:
+    $joined_light_themes
+  Dark:
+    $joined_dark_themes
+};
+    print $help_text;
+    exit;
+}
+
+sub get_theme_names {
+    my ($theme) = @_;
+    my $emacs_theme_prefix = $theme =~ m/(vivendi|operandi)/ ? "modus" : "ef";
+    my %theme_names = (
+        'alacritty' => $theme,
+        'awesome' => $theme,
+        'emacs' => $emacs_theme_prefix . "-" . $theme,
+        'kakoune' => $theme,
+        'rofi' => $theme,
+        'mode' => 'dark',
+        );
+    if ($theme eq "bio") {
+        $gtk_theme_dark = "Abyss-ENVY";
+    } elsif ( grep(/$theme/, @light_themes) ) {
+        $theme_names{'mode'} = "light";
+    } elsif ($theme =~ m/^(trio-dark|dark|cherie|tritanopia-dark)$/) {
+        $gtk_theme_dark = "Abyss-BLOOD";
+    } elsif ($theme eq "elea-dark") {
+        $gtk_theme_dark = "Abyss-DEEP";
+    } elsif ($theme eq "vivendi") {
+        $gtk_theme_dark = "Abyss-INK";
+    }
+    return %theme_names;
+}
+
+sub main {
+    my $change_theme;
+    my $arg = $ARGV[0] || "";
+    if ( grep( /^$arg$/, @available_themes ) ) {
+        $change_theme = 1;
+    } elsif ($arg eq "--list" || $arg eq "-l") {
+        print join("\n", @available_themes) . "\n";
+        exit;
+    } else {
+        print_help_and_exit();
+    }
+
+    print $arg . " theme Applied\n";
+    my %theme = get_theme_names($arg);
+    if ($theme{mode} eq "light") {
+        $gtk_theme = $gtk_theme_light;
+        $icon_theme = $icon_theme_light;
+    } else {
+        $gtk_theme = $gtk_theme_dark;
+        $icon_theme = $icon_theme_dark;
+    }
+    # for emacs
+    if (`pidof emacs`) {
+        sub emacsclient {
+            my $cmd = shift;
+            return unless $cmd;
+            system("emacsclient -e \"$cmd\"" . " > /dev/null")
+        }
+
+        emacsclient(qq{(mapc #'disable-theme custom-enabled-themes)});
+        emacsclient("(load-theme '$theme{emacs} t)");
+        print "$theme{emacs} emacs theme loaded\n";
+    }
+    system("perl ~/.config/wezterm/change-theme.pl $theme{alacritty}");
+    system("perl ~/.config/alacritty/change-theme.pl $theme{alacritty}");
+    system("perl ~/.config/kak/change-theme.pl $theme{kakoune}");
+    system("perl ~/.config/awesome/scripts/change-theme.pl $theme{awesome}");
+    system("perl ~/.config/rofi/change-theme.pl $theme{rofi}");
+    system("perl ~/.config/gtk-3.0/change-theme.pl $gtk_theme $icon_theme");
+    system("killall nm-applet");
+    system("awesome-client 'awesome.restart()' 2> /dev/null");
+}
+
+main()

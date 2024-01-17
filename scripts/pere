@@ -1,0 +1,260 @@
+#!/usr/bin/env perl
+
+# Simple & Capable bulk file renamer
+# https://codeberg.org/anhsirk0/pere
+
+use strict;
+use warnings;
+use File::Find;
+use File::Copy qw( move );
+use File::Basename qw( fileparse );
+use File::Path qw( make_path );
+use Cwd qw( getcwd );
+use Term::ANSIColor;
+use Getopt::Long;
+
+my @files = ();
+my @NUMS = ();
+my $NUMS_FORMAT;
+my @REPLACE = ();
+my $HELP;
+my $DRY_RUN;
+my $KEEP_LOG;
+my $RGX;
+my $TRUNCATE;
+my $DELETE;
+my $WITH_EXTENSION;
+my $REVERT;
+
+my $RED = "bright_red";
+my $GREEN = "bright_green";
+my $BLUE = "bright_blue";
+my $YELLOW = "yellow";
+
+my $MAXDEPTH = 1 + getcwd() =~ tr[/][];
+my $renamed_files_count = 0;
+my $renamed_files_details = "";
+my $config_dir = $ENV{HOME} .  "/.config/pere/";
+my $w_log = $config_dir . "pere_log_" . localtime();
+$w_log =~ s/ /_/g; # replace spaces with underscores
+
+my @numbering_examples = (
+    "pere * -nf 'file_{num}' -n 1",
+    "pere *.pl -nf '{old}_{num}' -n 1 5"
+    );
+
+sub naturally { # Minimal natural sort (could fail in some cases)
+    my ($digit_a) = $a =~ /(\d+)/;
+    my ($digit_b) = $b =~ /(\d+)/;
+    $digit_a ||= -1;
+    $digit_b ||= -1;
+    return ($a cmp $b) if ($digit_a * $digit_b < 0 || $digit_a + $digit_b < 0);
+    return $digit_a <=> $digit_b;
+}
+
+sub get_file_info {
+    my ($path) = @_;
+    my $file = (split "/", $_)[-1];
+    my ($f_name) = fileparse($file, qr/\.[^.]*/);
+    my ($f_ext) = $path =~ /\.([a-zA-Z0-9]+)$/;
+    if ($WITH_EXTENSION) {
+        $f_name .= "." . $f_ext;
+        $f_ext = "";
+    }
+   return ($file, $f_name, $f_ext)
+}
+
+sub rename_by_numbering {
+    unless ($NUMS_FORMAT) {
+        print colored("Must provide num-format for numbering.", $RED);
+        print "\nExamples:";
+        for (@numbering_examples) {
+            print "\n\t" . colored($_, $GREEN);
+        }
+        print "\n";
+        exit 1;
+    }
+    my $start = $NUMS[0];
+    my $end = (scalar @NUMS == 2) ? $NUMS[1] : 0;
+    my $idx = $start;
+
+    for (@files) {
+        my ($file, $f_name, $f_ext) = get_file_info($_);
+        my $new_name = $NUMS_FORMAT;
+        $new_name =~ s/\{old\}/$f_name/g;
+        $new_name =~ s/\{num\}/$idx/g;
+        rename_file($file, $new_name, $f_ext);
+        return if ($idx == $end);
+        if(scalar @NUMS == 1) {
+            $idx++;
+            next
+        }
+        $idx = $idx + ($start > $end ? -1 : 1);
+    }
+}
+
+sub rename_by_search_replace {
+    for (@files) {
+        my ($file, $f_name, $f_ext) = get_file_info($_);
+        next unless ($f_name =~ s/$REPLACE[0]/$REPLACE[1]/g);
+        rename_file($file, $f_name, $f_ext);
+    }
+}
+
+sub rename_by_truncating {
+    for (@files) {
+        my ($file, $f_name, $f_ext) = get_file_info($_);
+        my $new_name;
+        if ($TRUNCATE < 0) { # if negative int then keep chars from end
+            $new_name = substr($f_name, $TRUNCATE);
+        } else {
+            $new_name = substr($f_name, 0, $TRUNCATE);
+        }
+        rename_file($file, $new_name, $f_ext);
+    }
+}
+
+sub rename_by_deleting {
+    for (@files) {
+        my ($file, $f_name, $f_ext) = get_file_info($_);
+        my $new_name;
+        if (abs($DELETE) == length $f_name) { # cant delete all chars
+            return $f_name; # return without deleting any chars
+        }
+        if ($DELETE < 0) { # if negative int then delete chars from end
+            $new_name = substr($f_name, 0, $DELETE);
+        } else {
+            $new_name = substr($f_name, $DELETE);
+        }
+        rename_file($file, $new_name, $f_ext);
+    }
+}
+
+sub rename_file {
+    my ($file, $new_name, $ext) = @_;
+    return unless(-f $file);
+
+    unless ($WITH_EXTENSION) { $new_name .= "." . $ext; }
+    if (-f $new_name) {
+        print colored("$new_name already exists", $RED) . "\n";
+        return
+    }
+
+    my $detail = "$file -> $new_name\n";
+    if ($DRY_RUN) { print colored($detail, $GREEN); return }
+
+    if (move($file, $new_name)) {
+        $renamed_files_details .= $detail;
+        print colored($detail, $GREEN);
+        $renamed_files_count++;
+    }
+}
+
+# Max depth limit; preprocessor fn for File::Find
+sub preprocess {
+    my $depth = $File::Find::dir =~ tr[/][];
+    return @_ if $depth < $MAXDEPTH;
+}
+
+sub wanted {
+    my $file_name = $File::Find::name;
+    my $file = (split "/", $file_name)[-1];
+
+    return if ($file =~ /^\./ || !(-f)); # ignore hidden files/dirs
+    next unless ($file =~ m/^$RGX$/);
+    push(@files, $file)
+}
+
+sub print_help_and_exit {
+    my $help_text = qq{usage: pere [files*] [options]\n
+    -n, --num=INT INT\t\t Start and end (optional) numbers
+    -nf, --num-format=STR \t text format (required for numbering)
+    -r, --replace=STR STR \t Search and replace
+    -t, --truncate=INT \t\t Number of chars to keep (use negative value
+    		   \t\t\t      to keep chars from end. Ex: -t -6)
+    -d, --delete=INT \t\t Number of chars to delete (use negative value
+    		   \t\t\t      to delete chars from end. Ex: -d -6)
+    -e, --extension \t\t rename file along with extension
+    -dry, --dry-run \t\t show what will happen without renaming
+    -rev, --revert=STR \t\t revert the rename (require a logfile)
+    -nl, --no-log \t\t dont save log
+    -h, --help \t\t\t show this help message\n\n};
+    $help_text .= qq{examples:
+    pere * -nf 'file_{num}' -n 1
+    pere *.pl -nf '{old}_{num}' -n 1 5
+    pere -f '[a-zA-Z]*.mkv' -nf 'episode_{num}' -n 1
+    pere * -r 'mitsake' 'mistake'
+    pere *.jpg -r '.jpg' '.png' -e
+    pere * -t 20
+    pere * -d 4\n};
+    print $help_text;
+    exit
+}
+
+sub save_log {
+    unless (-d $config_dir) { make_path $config_dir }
+    return unless ($renamed_files_details);
+    open(FH, ">", $w_log) or die colored("Unable to open $w_log", $RED) . "\n";
+    print FH $renamed_files_details;
+    close(FH);
+    print colored("Logfile saved as \"$w_log\"\n", $GREEN);
+}
+
+# revert the renaming ; require a $logfile to restore
+sub revert_rename_and_exit {
+    die colored("Log file is required", $RED) . "\n" unless ($REVERT);
+    die colored("Log file does not exists", $RED) . "\n" unless (-f $REVERT);
+
+    open(FH, '<', $REVERT)
+        or die colored("Error opening logfile\n", $RED) . "\n";
+    $WITH_EXTENSION = 1;
+    while(<FH>) {
+        my ($initial, $final) = split " -> ", $_;
+        chomp $final;
+        rename_file($final, $initial, "");
+    }
+    close(FH);
+    save_log() unless ($KEEP_LOG || $DRY_RUN);
+    print $renamed_files_count . " Files renamed\n";
+    exit
+}
+
+sub main {
+    GetOptions (
+        "help|h" => \$HELP,
+        "dry|d" => \$DRY_RUN,
+        "find|f=s" => \$RGX,
+        "replace|r=s{2}" => \@REPLACE,
+        "num|n=i{1,2}" => \@NUMS,
+        "num-format|nf=s" => \$NUMS_FORMAT,
+        "extension|e" => \$WITH_EXTENSION,
+        "truncate|t=i" => \$TRUNCATE,
+        "delete|d=i" => \$DELETE,
+        "no-log|nl" => \$KEEP_LOG,
+        "revert|rev=s" => \$REVERT,
+        ) or die("Error in command line arguments\n");
+    print_help_and_exit() if $HELP;
+    revert_rename_and_exit() if $REVERT;
+
+    unless (@NUMS || @REPLACE || $DELETE || $TRUNCATE) {
+        die(colored("No renaming method provided.", $RED) . "\n");
+    }
+
+    if ($RGX) {
+        find({ preprocess => \&preprocess, wanted => \&wanted }, getcwd);
+    } else {
+        @files = grep(-f, @ARGV);
+    }
+    @files = sort naturally @files;
+    die(colored("No files to rename", $RED) . "\n") if (scalar @files < 1);
+
+    rename_by_numbering() if @NUMS;
+    rename_by_search_replace() if @REPLACE;
+    rename_by_deleting() if $DELETE;
+    rename_by_truncating() if $TRUNCATE;
+
+    save_log() unless ($KEEP_LOG || $DRY_RUN);
+    print $renamed_files_count . " Files renamed\n";
+}
+
+main()

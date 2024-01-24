@@ -1,0 +1,19 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+
+sub main {
+    my $pactl = `pactl list sink-inputs`;
+    s/\n//g, s/\s+/ /g for $pactl; # little cleanup
+    my ($state, $name, $artist) = $pactl =~ /.*Corked: (.*?) Mute.*?application.name = "Lollypop".*?media.title = "(.*?)".*media.artist = "(.*?)"/;
+    if ($name && $artist) {
+        # my $icon = $state =~ m/No/i ? '' : '';
+        my $icon = $state =~ m/no/i ? '' : '';
+        print "$icon $name - $artist ";
+    } else {
+        print "";
+    }
+}
+
+main();
